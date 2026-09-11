@@ -1,22 +1,3 @@
-"""
-win32.py — raw Win32 debug API surface via ctypes.
-
-This is the "manual" path: no winappdbg, no PyKD. We declare the structs,
-constants, and function prototypes ourselves and call kernel32 directly.
-Everything here is Windows-only and cannot be exercised off-Windows, so it's
-kept separate from the tested pure-logic core.
-
-Scope: just enough of the debug API to attach to a target, pump debug events,
-catch the access violation, and read the landed buffer. x86 and x64 both need
-their own CONTEXT layout for register access; the buffer read itself
-(ReadProcessMemory) is architecture-agnostic, so v1 focuses on that and leaves
-full CONTEXT/register retrieval as a marked extension point.
-
-References: the layouts below follow the documented Win32 structures. Verify
-sizes on your target build — struct packing is where manual ctypes work most
-often goes wrong, so win32.py ships with a __main__ self-check.
-"""
-
 from __future__ import annotations
 import ctypes
 from ctypes import wintypes

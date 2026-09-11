@@ -1,15 +1,3 @@
-"""
-config.py — all per-target parameters for a bad-char hunt, in one place.
-
-The engine reads a HuntConfig and runs; it hardcodes nothing about the target.
-Swap the config, hunt a different target. The future interactive console will
-also drive this object (set host ..., show options, run).
-
-Validation happens at construction so a self-poisoning config (a marker made of
-a bad byte, known_good in the excluded set, a template missing the buffer slot)
-fails loudly at setup instead of during a confusing hunt.
-"""
-
 from __future__ import annotations
 from dataclasses import dataclass, field
 
@@ -28,7 +16,7 @@ class HuntConfig:
     crash_size: int                             # total buffer length to fault
 
     template: bytes = b"{{BUF}}"   # 
-    recv_after: bool = True                           # KNet POC reads a response
+    recv_after: bool = True                           # POC reads a response
     timeout: float = 5.0
 
     # --- byte-hunt tuning ---

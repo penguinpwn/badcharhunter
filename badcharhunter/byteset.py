@@ -1,14 +1,3 @@
-"""
-byteset.py — generation of candidate byte sets for bad-char hunting.
-
-The core idea: build a sequence of all candidate bytes we want to test
-(default \\x01-\\xff), minus any the operator already knows are bad or
-wants to exclude for the input vector. As bad chars are confirmed, they
-get removed and the set is regenerated for the next round.
-
-No debugger, no network — pure logic, fully unit-testable.
-"""
-
 from __future__ import annotations
 from dataclasses import dataclass, field
 

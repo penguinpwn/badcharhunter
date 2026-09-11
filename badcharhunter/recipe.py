@@ -1,34 +1,3 @@
-"""
-recipe.py — a tiny interpreter for target-respawn "attach scripts".
-
-After a service crashes you can't just relaunch its exe (services are managed by
-the SCM). So the user provides a recipe: run some commands to bring the target
-back, then resolve its new PID, then `run` that PID (the debugger attaches to
-it). The engine runs this recipe on every crash to re-establish the target
-automatically — no manual PID entry.
-
-Grammar (one statement per line):
-
-    cmd "<shell command>"                 run a shell command, wait for it
-    sleep <seconds>                       wait
-    get_pid_by_name "<exe>" <var>         look up PID by exe name -> store in var
-    get_pid_by_func "<command>" <var>     run command, parse PID from stdout -> var
-    run <var>                             attach to the PID held in <var> (terminal)
-
-Quoting rule: quoted text is a LITERAL (a command or a name); a bare word is a
-VARIABLE (or a verb / a number). Inner quotes are escaped, shell-style, e.g.
-    cmd "net start \\"Disk Pulse Enterprise\\""
-Parsing uses shlex, so standard backslash-escaping works as expected.
-
-Rules: exactly one `run` statement, and its variable must have been assigned by
-an earlier get_pid_by_* step.
-
-SECURITY: `cmd` and `get_pid_by_func` execute arbitrary shell commands. Only run
-recipes you wrote yourself. Never load a recipe from an untrusted source.
-
-get_pid_by_name is Windows-only (uses procutil). Parsing is cross-platform.
-"""
-
 from __future__ import annotations
 import shlex
 import subprocess

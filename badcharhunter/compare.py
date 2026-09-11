@@ -1,26 +1,3 @@
-"""
-compare.py — diff a sent byte set against what actually landed in memory.
-
-Two strategies:
-
-  linear_diff  — walk both buffers in lockstep, report the first divergence.
-                 Cheap and correct when the buffer lands intact-until-corrupted
-                 (a bad char mangles the tail but earlier bytes align 1:1).
-
-  lcs_diff     — Longest Common Subsequence alignment. Robust when the landed
-                 buffer is shifted, has bytes inserted/removed, or is otherwise
-                 corrupted such that lockstep comparison desyncs. This is the
-                 same class of approach Corelan's mona.py uses for exactly this
-                 reason: naive index-by-index comparison falls apart the moment
-                 the buffers differ in *length*, not just content.
-
-Both report suspect bytes. Because a bad char can corrupt the byte *after* it
-(or make the true break point ambiguous), the first divergence flags BOTH the
-diverging byte and its successor as suspect — the operator confirms which.
-
-Pure logic, no debugger. Feed it two `bytes` objects.
-"""
-
 from __future__ import annotations
 from dataclasses import dataclass
 

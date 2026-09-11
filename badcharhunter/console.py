@@ -1,26 +1,3 @@
-"""
-console.py — an msf-style interactive console for BadCharHunter.
-
-Front-end only. It collects settings via `set` commands, shows them with
-`show`, and launches a hunt with `run`. It does NOT contain hunt logic — it
-constructs a HuntConfig from the accumulated settings and hands it to
-engine.hunt(). config.py owns what a config IS; this owns gathering the user's
-choices and building one.
-
-Design (Option A): the console holds LOOSE settings in a dict and only builds a
-real, validated HuntConfig at `run` time. HuntConfig validates in __post_init__
-(construction only), so building it once, when everything is set, is the correct
-moment to validate — no half-configured invalid instance ever exists.
-
-Usage:
-    python -m badcharhunter.console
-    bch > set host 192.168.211.129
-    bch > set port 80
-    bch > set crash_size 6000
-    bch > show
-    bch > run
-"""
-
 from __future__ import annotations
 import cmd
 import shlex

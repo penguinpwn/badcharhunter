@@ -1,21 +1,3 @@
-"""
-engine.py — the hunt orchestrator (starting with the single-round atom).
-
-This is the "brain": it wires every component together and holds the logic. It
-is the one file allowed to know about all the others. Nothing here is a new
-mechanism — it calls connection (send), manual_debugger (launch/attach + crash),
-mem_search (locate buffer), read_memory (read), and later compare/byteset/
-signature for the decision logic.
-
-We start with the ATOM: run_one_round(). One payload in, one result out, target
-cleanly reset. Everything else (baseline, diff, bisect, reduce) is just calling
-this repeatedly with different payloads and interpreting the results.
-
-This first version is ATTACH mode: you launch KNet yourself each round and hand
-the engine the new PID. Maximum verification (you watch every crash), maximum
-manual effort (a prompt every round). Launch mode (auto-respawn) comes later.
-"""
-
 from __future__ import annotations
 from dataclasses import dataclass, field
 
@@ -68,7 +50,7 @@ class DebugSession:
     payload can be reused without a restart+re-attach every time.
 
     Rule:
-      - After a CRASH, the process is dead -> next round must restart KNet and
+      - After a CRASH, the process is dead -> next round must restart target and
         re-attach to a new PID (prompt the operator).
       - After a NO-CRASH, the process is still alive -> reuse the same attached
         session, no prompt, no restart. (Optionally force a restart if you
@@ -295,7 +277,7 @@ def _hunt_with_session(cfg, bs, session, prompt, crash_timeout_ms) -> list[int]:
             print(f"[+] Baseline crash confirmed: {baseline.summary()}\n")
             break
         print(f"[!] Baseline did NOT crash ({baseline.summary()}).")
-        print("    Possible causes: wrong PID entered, KNet not fully restarted,")
+        print("    Possible causes: wrong PID entered, target not fully restarted,")
         print("    wrong crash_size/field/template, target not vulnerable as expected,")
         print("    or your known_good byte is itself a bad char.")
         ans = prompt("    Retry baseline? [y/N]: ").strip().lower()
@@ -395,10 +377,6 @@ def _bisect_no_crash(cfg: HuntConfig, cands: bytes, session: "DebugSession",
     A group of candidate bytes did NOT crash -> a bad byte is inside it. Split
     and recurse: whichever half fails to crash contains a bad byte. Returns the
     isolated bad byte value(s).
-
-    Because no-crash rounds reuse the same live target (via the session), a
-    whole bisection sequence runs against one surviving KNet instance — only an
-    actual crash forces a restart+re-attach prompt.
     """
     if len(cands) == 1:
         return [cands[0]]        # isolated: this single byte prevents the crash
