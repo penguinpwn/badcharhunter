@@ -1,0 +1,5 @@
+sleep 5
+cmd "net start \"Disk Pulse Enterprise\""
+sleep 2
+get_pid_by_name "diskpls.exe" pid 
+run pid
