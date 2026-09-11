@@ -68,3 +68,29 @@ run pid
 ```
  
 With a recipe loaded, a full hunt against a service runs with no manual PID entry.
+
+
+## Usage
+ 
+### Interactive console (recommended)
+ 
+Launch the console — an msf-style interface where you set options and run:
+ 
+```
+python3 -m badcharhunter.console
+```
+
+### Console commands
+ 
+| Command | What it does |
+|---|---|
+| `set <option> <value>` | configure an option (host, port, crash_size, template, excluded, …) |
+| `show` | show all current settings |
+| `set template_file <path>` | load the request template from a file |
+| `set sender_file <path.py>` | load a custom `send(buffer, host, port)` for binary protocols |
+| `set respawn_recipe <path>` | load a respawn recipe (auto-restart + re-attach) |
+| `unset <option>` | clear a setting |
+| `run` | build the config and start the hunt |
+| `exit` | leave the console |
+ 
+Required options (no default, must be set): **host**, **port**, **crash_size**.
