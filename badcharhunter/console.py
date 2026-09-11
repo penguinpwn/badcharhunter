@@ -69,7 +69,7 @@ SETTINGS = {
 _FILE_LOADERS = {
         "template_file": "do_template_file",
         "sender_file":   "do_sender_file",
-        "respawn_recipe": "do_attach_script",
+        "respawn_recipe": "do_respawn_recipe",
     }
 
 
@@ -80,7 +80,7 @@ class BadCharConsole(cmd.Cmd):
 
     def __init__(self):
         super().__init__()
-        self._recipe_path = None   # path of the loaded attach_script, for show
+        self._recipe_path = None   # path of the loaded respawn_recipe, for show
         self._sender_path = None   # path of the loaded sender_file, for show
         # loose settings; sensible defaults for the SAFE, non-target-specific
         # options. host, port, crash_size are intentionally NOT defaulted —
@@ -210,8 +210,8 @@ class BadCharConsole(cmd.Cmd):
             print("no custom sender was set.")
 
     # ---- attach / respawn script ----
-    def do_attach_script(self, arg):
-        """attach_script <path>   load a respawn recipe (parse-checked now).
+    def do_respawn_recipe(self, arg):
+        """respawn_recipe <path>   load a respawn recipe (parse-checked now).
 
         When set, a fresh target after each crash is obtained by running this
         recipe (restart the service, resolve its PID, attach) instead of
@@ -219,7 +219,7 @@ class BadCharConsole(cmd.Cmd):
         """
         path = arg.strip().strip('"').strip("'")
         if not path:
-            print("usage: attach_script <path>")
+            print("usage: respawn_recipe <path>")
             return
         from .recipe import load_recipe_file, RecipeError
         try:
@@ -252,7 +252,7 @@ class BadCharConsole(cmd.Cmd):
             "template_file": "template",
             "sender_file":   "sender_fn",
             "sender_fn":     "sender_fn",
-            "attach_script": "respawn_recipe",
+            "respawn_recipe": "respawn_recipe",
             "respawn_recipe":"respawn_recipe",
         }
         if name in loader_aliases:
@@ -288,15 +288,15 @@ class BadCharConsole(cmd.Cmd):
                 print(f"  {name:22} = (REQUIRED — not set)")
             else:
                 print(f"  {name:22} = (default)")
-        # respawn_recipe is loaded via `attach_script`, not `set`, so it isn't in
+        # respawn_recipe is loaded via `respawn_recipe`, not `set`, so it isn't in
         # SETTINGS — report it separately so you can confirm it's loaded.
         recipe = self.settings.get("respawn_recipe")
         if recipe:
             src = f" from {self._recipe_path}" if self._recipe_path else ""
             print(f"  {'respawn_recipe':22} = loaded ({len(recipe)} steps){src} "
-                  "[via attach_script]")
+                  "[via respawn_recipe]")
         else:
-            print(f"  {'respawn_recipe':22} = (none) [set with attach_script]")
+            print(f"  {'respawn_recipe':22} = (none) [set with respawn_recipe]")
         sender = self.settings.get("sender_fn")
         if sender:
             src = f" ({self._sender_path})" if self._sender_path else ""
