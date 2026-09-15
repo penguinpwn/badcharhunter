@@ -149,6 +149,12 @@ class DebugSession:
     def close(self) -> None:
         self._teardown_current()
 
+    def current_debugger(self):
+        """The live debugger — for reading the crashed target's registers."""
+        if self._dbg is None:
+            raise RuntimeError("no active debugger")
+        return self._dbg
+
 
 def run_one_round(cfg: HuntConfig, test_bytes: bytes, session: "DebugSession",
                   *, crash_timeout_ms: int = 3000) -> RoundResult:
@@ -300,7 +306,42 @@ def _hunt_with_session(cfg, bs, session, prompt, crash_timeout_ms) -> list[int]:
         print(f"    {result.summary()}")
 
         if result.crashed:
+            # signature_detection = go straight to register-based detection,
+            # skipping the memory-diff / buffer-finding entirely.
+            if cfg.signature_detection:
+                print(f"[*] signature_detection on — using "
+                      f"{cfg.landing_register.upper()} ({cfg.register_mode}).")
+                done = _run_register_detection(
+                    cfg, session, cands, found_bad, bs, crash_timeout_ms)
+                if done:
+                    break
+                continue
+
             diffs = _diff_landed(cfg, cands, result)
+
+            # Buffer not found in memory: memory-diff can't work. Fall back to
+            # register-based detection if a landing_register is set; otherwise
+            # tell the operator to enable it.
+            if not diffs:
+                if not cfg.landing_register:
+                    print("[!] Crashed, but the buffer was NOT found in memory. "
+                          "This target likely overwrites a register directly "
+                          "(e.g. EIP). Set a landing_register and re-run, e.g.:")
+                    print("      set landing_register esp")
+                    print("      set register_mode pointer   (or: direct)")
+                    print("    then the tool will use signature/register-based "
+                          "detection. (Or 'set signature_detection true' to use "
+                          "it from the start.)")
+                    break
+                print(f"[*] Buffer not found in memory — switching to "
+                      f"register-based detection on "
+                      f"{cfg.landing_register.upper()} ({cfg.register_mode}).")
+                done = _run_register_detection(
+                    cfg, session, cands, found_bad, bs, crash_timeout_ms)
+                if done:
+                    break
+                continue
+
             # Default: auto-pick the most-aligned copy (most likely the real
             # buffer). Show all so the operator can see them.
             best_addr, best = max(diffs, key=lambda d: d[1].aligned_len)
@@ -369,6 +410,86 @@ def _hunt_with_session(cfg, bs, session, prompt, crash_timeout_ms) -> list[int]:
     all_bad = sorted(set(found_bad) | cfg.excluded)
     print(f"[=] Full bad-char set (with exclusions): {[hex(b) for b in all_bad]}")
     return sorted(found_bad)
+
+
+def _run_register_detection(cfg, session, cands, found_bad, bs, crash_timeout_ms) -> bool:
+    """Run register-based detection for the current candidate set.
+    Returns True if the hunt is complete (all bytes reached the register),
+    False if bad chars were found and removed (caller should loop again)."""
+    if _register_reached(cfg, session, cands):
+        print("[+] All sent bytes reached the register intact. Hunt complete.")
+        return True
+    print("    -> buffer did not reach the register; bisecting.")
+    bad = _bisect_registers(cfg, session, cands, crash_timeout_ms)
+    if not bad:
+        print("[!] Register bisection found nothing; stopping.")
+        return True
+    for b in bad:
+        if b not in found_bad:
+            found_bad.append(b)
+            bs.mark_bad(b)
+    print(f"    -> bad char(s): {[hex(b) for b in bad]}; resending.\n")
+    return False
+
+
+def _register_reached(cfg, session, test_bytes) -> bool:
+    """
+    Register oracle: after a crash, read the configured landing register and
+    decide whether our buffer reached it (clean) or a bad byte truncated it.
+      pointer: register holds an address -> read memory there, look for marker
+      direct:  register value IS our bytes -> does it look like our data?
+    """
+    from .regs import read_register
+    dbg = session.current_debugger()
+    tid = dbg.get_fault_thread_handle()
+    regval = read_register(tid, cfg.landing_register)
+ 
+    if cfg.register_mode == "pointer":
+        # The register usually points INTO the middle of our landed buffer, not
+        # at the marker at its start. So read a large window AROUND the pointer
+        # (the buffer extends both before and after where the register lands) and
+        # search the whole thing. Forward window adapts to the payload size so a
+        # big buffer is still fully covered.
+        window_back = 1024
+        window_fwd = max(4096, cfg.crash_size)
+        start = regval - window_back
+        if start < 0:
+            start = 0
+        try:
+            data = read_memory(dbg.get_handle(), start, window_back + window_fwd)
+        except OSError:
+            return False
+        # marker anywhere in the window -> our buffer reached here
+        if cfg.marker in data:
+            return True
+        # marker may sit outside the window; fall back to a fingerprint of the
+        # bytes we actually sent this round (a run of them present in the window).
+        if len(test_bytes) >= 8 and test_bytes[:8] in data:
+            return True
+        return False
+    else:  # direct
+        regbytes = regval.to_bytes(4, "little")
+        return all(b in test_bytes or b == cfg.known_good for b in regbytes)
+
+
+def _bisect_registers(cfg, session, cands, crash_timeout_ms) -> list:
+    """Bisect using the register oracle. Each probe is a full round: crash the
+    target, then check whether the buffer reached the register."""
+    if len(cands) == 1:
+        return [cands[0]]
+    mid = len(cands) // 2
+    bad = []
+    for half in (cands[:mid], cands[mid:]):
+        if not half:
+            continue
+        print(f"      [reg-bisect] testing {len(half)} bytes ...")
+        run_one_round(cfg, half, session, crash_timeout_ms=crash_timeout_ms)
+        if _register_reached(cfg, session, half):
+            print(f"        reached register -> clean group ({len(half)} bytes)")
+            continue
+        print(f"        did NOT reach register -> bad byte in this group; recursing")
+        bad.extend(_bisect_registers(cfg, session, half, crash_timeout_ms))
+    return bad
 
 
 def _bisect_no_crash(cfg: HuntConfig, cands: bytes, session: "DebugSession",

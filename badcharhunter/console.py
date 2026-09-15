@@ -42,6 +42,9 @@ SETTINGS = {
     "marker":      (lambda s: s.encode(), "distinctive bad-char-free marker string"),
     "excluded":    (_parse_byteset,"bytes known bad, e.g. 00,0a,0d"),
     "manual_buffer_select": (_parse_bool, "ask which match to use when several (true/false)"),
+    "landing_register": (str, "register the buffer lands in (esp/eip/eax...); enables register-based detection"),
+    "register_mode": (str, "pointer or direct — how to read the landing register"),
+    "signature_detection": (_parse_bool, "true = skip buffer-finding, use register/signature detection only"),
 }
 _FILE_LOADERS = {
         "template_file": "do_template_file",

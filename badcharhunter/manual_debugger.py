@@ -21,6 +21,7 @@ class ManualDebugger:
         self.pid = None
         self._handle = None          # OWNED process handle (read/write rights)
         self._thread_handle = None   # only set on launch (from PROCESS_INFORMATION)
+        self._fault_thread_handle = None   # faulting thread, opened at crash
         self._mode = None            # "launched" or "attached"
         self._alive = False
 
@@ -104,6 +105,13 @@ class ManualDebugger:
         if not self._handle:
             raise RuntimeError("no handle yet — call launch() or attach() first")
         return self._handle
+
+    def get_fault_thread_handle(self):
+        """The faulting thread's handle (valid after a crash) — for reading
+        registers via GetThreadContext. Raises if no crash has been caught."""
+        if not self._fault_thread_handle:
+            raise RuntimeError("no faulting thread handle — no crash caught yet")
+        return self._fault_thread_handle
 
     # ------------------------------------------------------------------ pump
 
@@ -189,7 +197,11 @@ class ManualDebugger:
                     status = w.DBG_CONTINUE
                 elif exc_code in FATAL:
                     # THE CRASH. Leave the target frozen (do NOT ContinueDebugEvent
-                    # here) so the driver can read memory at the fault.
+                    # here) so the driver can read memory / registers at the fault.
+                    # Open the faulting thread so its registers can be read.
+                    self._fault_thread_handle = w.kernel32.OpenThread(
+                        w.THREAD_GET_CONTEXT, False, evt.dwThreadId
+                    )
                     return CrashSignature(
                         crashed=True,
                         fault_address=rec.ExceptionAddress or 0,
@@ -229,6 +241,9 @@ class ManualDebugger:
         if self._thread_handle:
             w.kernel32.CloseHandle(self._thread_handle)
             self._thread_handle = None
+        if self._fault_thread_handle:
+            w.kernel32.CloseHandle(self._fault_thread_handle)
+            self._fault_thread_handle = None
         if self._handle:
             w.kernel32.CloseHandle(self._handle)   # the one close
             self._handle = None

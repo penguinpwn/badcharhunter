@@ -47,7 +47,22 @@ class HuntConfig:
     #   crashes misread as no-crash -> false bisection. Bump it if the same
     #   payload crashes inconsistently.
 
+    # --- register-based detection (for targets where the buffer isn't found in
+    #     memory, e.g. a direct EIP overwrite) ---
+    landing_register: str | None = None                 # e.g. "esp" / "eip"
+    register_mode: str = "pointer"                       # "pointer" or "direct"
+    signature_detection: bool = False                    # when True, skip buffer
+    #   finding entirely and go straight to register/signature detection. When
+    #   False (default), try the memory-diff first and only fall back if the
+    #   buffer isn't found.
+
     def __post_init__(self) -> None:
+        if self.register_mode not in ("pointer", "direct"):
+            raise ValueError("register_mode must be 'pointer' or 'direct'")
+        if self.signature_detection and not self.landing_register:
+            raise ValueError(
+                "signature_detection is on but no landing_register is set "
+                "(set landing_register, e.g. 'esp')")
         # Resolve the fixed, one-time {{HOST}} placeholder now (it never changes
         # per round, unlike {{BUF}}/{{LEN}} which connection.py does per send).
         if b"{{HOST}}" in self.template:
@@ -100,5 +115,8 @@ class HuntConfig:
             f"  manual_buffer_select = {self.manual_buffer_select}",
             f"  respawn_recipe = {'loaded' if self.respawn_recipe else '(none)'}",
             f"  sender_fn   = {'loaded (custom send)' if self.sender_fn else '(none, uses template)'}",
+            f"  landing_register = {self.landing_register or '(none)'}",
+            f"  register_mode = {self.register_mode}",
+            f"  signature_detection = {self.signature_detection}",
         ]
         return "\n".join(lines)

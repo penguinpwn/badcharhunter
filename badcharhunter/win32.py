@@ -260,6 +260,62 @@ kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY
 kernel32.Process32NextW.restype  = wintypes.BOOL
 
 
+# ---- x86 CONTEXT (register reading via GetThreadContext) ----
+# Use c_uint32 (always 4 bytes) so the layout is correct regardless of platform.
+_DWORD32 = ctypes.c_uint32
+
+CONTEXT_i386     = 0x00010000
+CONTEXT_CONTROL  = CONTEXT_i386 | 0x0001
+CONTEXT_INTEGER  = CONTEXT_i386 | 0x0002
+CONTEXT_SEGMENTS = CONTEXT_i386 | 0x0004
+CONTEXT_FULL     = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS
+THREAD_GET_CONTEXT = 0x0008
+MAXIMUM_SUPPORTED_EXTENSION = 512
+
+
+class FLOATING_SAVE_AREA(ctypes.Structure):
+    _fields_ = [
+        ("ControlWord",   _DWORD32),
+        ("StatusWord",    _DWORD32),
+        ("TagWord",       _DWORD32),
+        ("ErrorOffset",   _DWORD32),
+        ("ErrorSelector", _DWORD32),
+        ("DataOffset",    _DWORD32),
+        ("DataSelector",  _DWORD32),
+        ("RegisterArea",  ctypes.c_byte * 80),
+        ("Cr0NpxState",   _DWORD32),
+    ]
+
+
+class CONTEXT(ctypes.Structure):
+    """x86 CONTEXT (716 bytes). Integer regs + Eip/Esp are what we read."""
+    _fields_ = [
+        ("ContextFlags", _DWORD32),
+        ("Dr0", _DWORD32), ("Dr1", _DWORD32), ("Dr2", _DWORD32),
+        ("Dr3", _DWORD32), ("Dr6", _DWORD32), ("Dr7", _DWORD32),
+        ("FloatSave", FLOATING_SAVE_AREA),
+        ("SegGs", _DWORD32), ("SegFs", _DWORD32),
+        ("SegEs", _DWORD32), ("SegDs", _DWORD32),
+        ("Edi", _DWORD32), ("Esi", _DWORD32), ("Ebx", _DWORD32),
+        ("Edx", _DWORD32), ("Ecx", _DWORD32), ("Eax", _DWORD32),
+        ("Ebp",    _DWORD32),
+        ("Eip",    _DWORD32),
+        ("SegCs",  _DWORD32),
+        ("EFlags", _DWORD32),
+        ("Esp",    _DWORD32),
+        ("SegSs",  _DWORD32),
+        ("ExtendedRegisters", ctypes.c_byte * MAXIMUM_SUPPORTED_EXTENSION),
+    ]
+
+
+
+kernel32.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+kernel32.OpenThread.restype  = wintypes.HANDLE
+
+kernel32.GetThreadContext.argtypes = [wintypes.HANDLE, ctypes.POINTER(CONTEXT)]
+kernel32.GetThreadContext.restype  = wintypes.BOOL
+
+
 def last_error() -> int:
     return ctypes.get_last_error()
 
@@ -273,4 +329,5 @@ if __name__ == "__main__":
     print("STARTUPINFOW size:       ", ctypes.sizeof(STARTUPINFOW))
     print("PROCESS_INFORMATION size:", ctypes.sizeof(PROCESS_INFORMATION))
     print("MEMORY_BASIC_INFO size:  ", ctypes.sizeof(MEMORY_BASIC_INFORMATION))
+    print("CONTEXT size:            ", ctypes.sizeof(CONTEXT))
     print("pointer size (arch):     ", ctypes.sizeof(ctypes.c_void_p))
